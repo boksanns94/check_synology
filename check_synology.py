@@ -22,6 +22,7 @@ parser.add_argument("-p", help="the snmp port", type=int, dest="port", default=1
 parser.add_argument("-e", help="SNMP privacy protocol encryption", type=str, default="AES128", choices=["AES128", "DES"])
 parser.add_argument("-t", help="timeout for snmp connection", type=int, default=10)
 parser.add_argument("-r", help="retries for snmp connection if timeout occurs", type=int, default=3)
+parser.add_argument("-s", help="security level type", type=str, default="auth_with_privacy", choices=["auth_with_privacy", "auth_without_privacy", "no_auth_or_privacy"])
 args = parser.parse_args()
 
 hostname = args.hostname
