@@ -2,3 +2,4 @@
 .venv*
 __pycache__
 *.egg-info
+check_synology_org.py
