@@ -23,6 +23,7 @@ parser.add_argument("-c", "--critical", help="critical value for selected mode",
 parser.add_argument("-p", "--remote-port", help="the snmp port", type=int, dest="port", default=161)
 parser.add_argument("-t", "--timeout", help="timeout for snmp connection", type=int, default=10)
 parser.add_argument("-r", "--retries", help="retries for snmp connection if timeout occurs", type=int, default=3)
+parser.add_argument("-s", "--security-level", help="security level type", type=str, default="auth_with_privacy", choices=["auth_with_privacy", "auth_without_privacy", "no_auth_or_privacy"])
 args = parser.parse_args()
 
 hostname = args.H
@@ -37,6 +38,7 @@ critical = args.c
 port = args.p
 snmp_timeout = args.t
 snmp_retries = args.r
+sec_lvl = args.s
 
 state = 'OK'
 
@@ -70,7 +72,7 @@ try:
         version=3,
         timeout=snmp_timeout,
         retries=snmp_retries,
-        security_level="auth_with_privacy",
+        security_level=sec_lvl,
         security_username=user_name,
         auth_password=auth_key,
         auth_protocol=auth_prot,
