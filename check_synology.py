@@ -4,39 +4,40 @@ import argparse
 import sys
 import math
 import re
-
 import easysnmp
 
 AUTHOR = "Frederic Werner"
 VERSION = "1.1.0"
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-H", "--hostname", help="the hostname", type=str)
-parser.add_argument("-u", "--security-username", help="the snmp user name", type=str)
+parser.add_argument("-H", "--hostname", help="the hostname", type=str, required=True)
+parser.add_argument("-u", "--security-username", help="the snmp user name", type=str, required=True)
 parser.add_argument("-o", "--auth-protocol", help="the authentication protocol", default="MD5", choices=["MD5", "SHA"])
-parser.add_argument("-a", "--auth-password", help="the authentication key", type=str)
+parser.add_argument("-a", "--auth-password", help="the authentication key", type=str, required=True)
+parser.add_argument("-s", "--security-level", help="security level type", type=str, default="auth_with_privacy", choices=["auth_with_privacy", "auth_without_privacy", "no_auth_or_privacy"])
 parser.add_argument("-e", "--privacy-protocol", help="SNMP privacy protocol encryption", type=str, default="AES128", choices=["AES128", "DES"])
-parser.add_argument("-k", "--privacy-password", help="the privacy key", type=str)
-parser.add_argument("-m", "--mode", help="the mode", type=str, choices=["load", "memory", "disk", "storage", "update", "status"])
+parser.add_argument("-k", "--privacy-password", help="the privacy key", type=str, default="")
+parser.add_argument("-m", "--mode", help="the mode", type=str, choices=["load", "memory", "disk", "storage", "update", "status"], required=True)
 parser.add_argument("-w", "--warning", help="warning value for selected mode", type=int)
 parser.add_argument("-c", "--critical", help="critical value for selected mode", type=int)
-parser.add_argument("-p", "--remote-port", help="the snmp port", type=int, dest="port", default=161)
+parser.add_argument("-p", "--remote-port", help="the snmp port", type=int, default=161)
 parser.add_argument("-t", "--timeout", help="timeout for snmp connection", type=int, default=10)
 parser.add_argument("-r", "--retries", help="retries for snmp connection if timeout occurs", type=int, default=3)
 args = parser.parse_args()
 
-hostname = args.H
-user_name = args.u
-auth_prot = args.o
-auth_key = args.a
-priv_protocol = args.e
-priv_key = args.k
-mode = args.m
-warning = args.w
-critical = args.c
-port = args.p
-snmp_timeout = args.t
-snmp_retries = args.r
+hostname = args.hostname
+user_name = args.security_username
+auth_prot = args.auth_protocol
+auth_key = args.auth_password
+priv_protocol = args.privacy_protocol
+priv_key = args.privacy_password
+mode = args.mode
+warning = args.warning
+critical = args.critical
+port = args.remote_port
+snmp_timeout = args.timeout
+snmp_retries = args.retries
+sec_lvl = args.security_level
 
 state = 'OK'
 
