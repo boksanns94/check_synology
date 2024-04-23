@@ -14,7 +14,7 @@ parser.add_argument("-H", "--hostname", help="the hostname", type=str, required=
 parser.add_argument("-u", "--security-username", help="the snmp user name", type=str, required=True)
 parser.add_argument("-o", "--auth-protocol", help="the authentication protocol", default="MD5", choices=["MD5", "SHA"])
 parser.add_argument("-a", "--auth-password", help="the authentication key", type=str, required=True)
-parser.add_argument("-s", "--security-level", help="security level type", type=str, default="auth_without_privacy", choices=["auth_with_privacy", "auth_without_privacy", "no_auth_or_privacy"])
+parser.add_argument("-s", "--security-level", help="security level type", type=str, default="auth_with_privacy", choices=["auth_with_privacy", "auth_without_privacy", "no_auth_or_privacy"])
 parser.add_argument("-e", "--privacy-protocol", help="SNMP privacy protocol encryption", type=str, default="AES128", choices=["AES128", "DES"])
 parser.add_argument("-k", "--privacy-password", help="the privacy key", type=str, default="")
 parser.add_argument("-m", "--mode", help="the mode", type=str, choices=["load", "memory", "disk", "storage", "update", "status"], required=True)
