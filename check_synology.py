@@ -64,6 +64,24 @@ def croak(message=None):
     exit_code()
 
 
+try:
+    session = easysnmp.Session(
+        hostname=hostname,
+        remote_port=port,
+        version=3,
+        timeout=snmp_timeout,
+        retries=snmp_retries,
+        security_level=sec_lvl,
+        security_username=user_name,
+        auth_password=auth_key,
+        auth_protocol=auth_prot,
+        privacy_password=priv_key,
+        privacy_protocol=priv_protocol
+    )
+except Exception as e:
+    croak(e)
+
+
 def snmp_get(oid):
     """
     Return value from single OID.
@@ -86,23 +104,6 @@ def snmp_walk(oid):
         croak(err)
     return res
 
-
-try:
-    session = easysnmp.Session(
-        hostname=hostname,
-        remote_port=port,
-        version=3,
-        timeout=snmp_timeout,
-        retries=snmp_retries,
-        security_level=sec_lvl,
-        security_username=user_name,
-        auth_password=auth_key,
-        auth_protocol=auth_prot,
-        privacy_password=priv_key,
-        privacy_protocol=priv_protocol
-    )
-except Exception as e:
-    croak(e)
 
 if mode == 'load':
     load1 = str(float(snmp_get('1.3.6.1.4.1.2021.10.1.5.1')) / 100)
