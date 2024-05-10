@@ -2,48 +2,58 @@
 
 import argparse
 import sys
-import math
 import re
-
 import easysnmp
 
 AUTHOR = "Frederic Werner"
 VERSION = "1.1.0"
 
 parser = argparse.ArgumentParser()
-parser.add_argument("hostname", help="the hostname", type=str)
-parser.add_argument("username", help="the snmp user name", type=str)
-parser.add_argument("authkey", help="the auth key", type=str)
-parser.add_argument("privkey", help="the priv key", type=str)
-parser.add_argument("mode", help="the mode", type=str,
-                    choices=["load", "memory", "disk", "storage", "update", "status"])
-parser.add_argument("-w", help="warning value, accepts str or int",
-                    type=lambda value: int(value) if value.isdigit() else value)
-parser.add_argument("-c", help="critical value, accepts str or int",
-                    type=lambda value: int(value) if value.isdigit() else value)
-parser.add_argument("-p", help="the snmp port", type=int, dest="port", default=161)
-parser.add_argument("-e", help="SNMP privacy protocol encryption", type=str, default="AES128",
-                    choices=["AES128", "DES"])
-parser.add_argument("-t", help="timeout for snmp connection", type=int, default=10)
-parser.add_argument("-r", help="retries for snmp connection if timeout occurs", type=int, default=3)
-parser.add_argument("-s", help="security level type", type=str, default="auth_with_privacy",
+parser.add_argument("-H", "--hostname", help="the hostname",
+                    type=str, required=True)
+parser.add_argument("-u", "--security-username", help="the snmp user name",
+                    type=str, required=True)
+parser.add_argument("-o", "--auth-protocol", help="the authentication protocol",
+                    type=str, default="MD5", choices=["MD5", "SHA"])
+parser.add_argument("-a", "--auth-password", help="the authentication key",
+                    type=str, required=True)
+parser.add_argument("-s", "--security-level", help="security level type",
+                    type=str, default="auth_with_privacy",
                     choices=["auth_with_privacy", "auth_without_privacy", "no_auth_or_privacy"])
-parser.add_argument("-u", help="unit of measure for conversion", type=str, default="MB")
+parser.add_argument("-e", "--privacy-protocol", help="SNMP privacy protocol encryption",
+                    type=str, default="AES128", choices=["AES128", "DES"])
+parser.add_argument("-k", "--privacy-password", help="the privacy key",
+                    type=str, default="")
+parser.add_argument("-m", "--mode", help="the mode",
+                    type=str, choices=["load", "memory", "disk", "storage", "update", "status"], required=True)
+parser.add_argument("-w", "--warning", help="warning value for selected mode",
+                    type=lambda value: int(value) if value.isdigit() else value)
+parser.add_argument("-c", "--critical", help="critical value for selected mode",
+                    type=lambda value: int(value) if value.isdigit() else value)
+parser.add_argument("-p", "--remote-port", help="the snmp port",
+                    type=int, default=161)
+parser.add_argument("-t", "--timeout", help="timeout for snmp connection",
+                    type=int, default=10)
+parser.add_argument("-r", "--retries", help="retries for snmp connection if timeout occurs",
+                    type=int, default=3)
+parser.add_argument("-n", "--unit-of-measure", help="unit of measure for conversion",
+                    type=str, default="")
 args = parser.parse_args()
 
 hostname = args.hostname
-port = args.port
-user_name = args.username
-auth_key = args.authkey
-priv_key = args.privkey
+user_name = args.security_username
+auth_prot = args.auth_protocol
+auth_key = args.auth_password
+priv_protocol = args.privacy_protocol
+priv_key = args.privacy_password
 mode = args.mode
-warning = args.w
-critical = args.c
-priv_protocol = args.e
-snmp_timeout = args.t
-snmp_retries = args.r
-sec_lvl = args.s
-uom = args.u
+warning = args.warning
+critical = args.critical
+port = args.remote_port
+snmp_timeout = args.timeout
+snmp_retries = args.retries
+sec_lvl = args.security_level
+uom = args.unit_of_measure
 
 state_flag = 0
 states_translation = {
@@ -53,15 +63,18 @@ states_translation = {
     3: 'UNKNOWN'
 }
 
+# The tuple contains the divisor for calculating the unit of measure in the 1st place
+# and the number of decimal digits to print when formatting output
 uom_divisors = {
-    "GiB": 1073741824,
-    "GB": 1000000000,
-    "MiB": 1048576,
-    "MB": 1000000,
-    "KiB": 1024,
-    "KB": 1000
+    "TiB": (1099511627776, 1),
+    "TB": (1000000000000, 1),
+    "GiB": (1073741824, 1),
+    "GB": (1000000000, 1),
+    "MiB": (1048576, 2),
+    "MB": (1000000, 2),
+    "KiB": (1024, 0),
+    "KB": (1000, 0)
 }
-div = uom_divisors.get(uom, 1000000)
 
 
 def exit_code():
@@ -106,8 +119,8 @@ def snmp_get(oid):
     try:
         res = session.get(oid)
         return res.value
-    except Exception as e:
-        croak(e)
+    except Exception as err:
+        croak(err)
 
 
 def snmp_walk(oid):
@@ -117,8 +130,8 @@ def snmp_walk(oid):
     res = []
     try:
         res = session.walk(oid)
-    except Exception as e:
-        croak(e)
+    except Exception as err:
+        croak(err)
     return res
 
 
@@ -132,7 +145,7 @@ try:
         security_level=sec_lvl,
         security_username=user_name,
         auth_password=auth_key,
-        auth_protocol="MD5",
+        auth_protocol=auth_prot,
         privacy_password=priv_key,
         privacy_protocol=priv_protocol
     )
@@ -152,10 +165,10 @@ if mode == 'load':
     (l1_w, l5_w, l15_w) = parse_state_arguments(warning)
     (l1_c, l5_c, l15_c) = parse_state_arguments(critical)
 
-    if l1_w < load1 or l5_w < load5 or l15_w < load15:
-        state_flag = 1
-    if l1_c < load1 or l5_c < load5 or l15_c < load15:
+    if load1 > l1_c or load5 > l5_c or load15 > l15_c:
         state_flag = 2
+    elif load1 > l1_w or load5 > l5_w or load15 > l15_w:
+        state_flag = 1
 
     plugin_output = f"{states_translation[state_flag]} - load average: {load1}, {load5}, {load15}"
     perf_data = f"'load1'={load1};{l1_w};{l1_c} 'load5'={load5};{l5_w};{l5_c} 'load15'={load15};{l15_w};{l15_c}"
@@ -164,25 +177,29 @@ if mode == 'load':
     exit_code()
 
 if mode == 'memory':
+    if not uom:
+        uom = "GiB"
+    div, dd = uom_divisors.get(uom)
+
     memory_total = float(snmp_get('1.3.6.1.4.1.2021.4.5.0')) * 1000
     memory_unused = float(snmp_get('1.3.6.1.4.1.2021.4.6.0')) * 1000
     memory_cached = float(snmp_get('1.3.6.1.4.1.2021.4.15.0')) * 1000
     memory_usable = memory_unused + memory_cached
     memory_usable_percent = 100 / memory_total * memory_usable
 
-    if warning and warning > memory_usable_percent:
-        state_flag = 1
-    if critical and critical > memory_usable_percent:
+    if critical and memory_usable_percent < critical:
         state_flag = 2
+    elif warning and memory_usable_percent < warning:
+        state_flag = 1
 
     plugin_output = (f"{states_translation[state_flag]} - "
                      f"{memory_usable_percent:.0f}% usable "
-                     f"({memory_usable / div:.1f}{uom} out of {memory_total / div:.1f}{uom})")
-    perf_data = (f"'usable memory'={memory_usable / div:.1f}{uom};"
-                 f"{(memory_total / 100 * warning) / div:.1f};"
-                 f"{(memory_total / 100 * critical) / div:.1f};0;"
-                 f"{memory_total / div:.1f} "
-                 f"'usable memory %'={memory_usable_percent:.0f}%;{warning:.0f}%;{critical:.0f}%;0%;100%")
+                     f"({memory_usable / div:.{dd}f}{uom} out of {memory_total / div:.{dd}f}{uom})")
+    perf_data = (f"'usable memory [{uom}]'={memory_usable / div:.{dd}f};"
+                 f"{(memory_total / 100 * warning) / div:.{dd}f};"
+                 f"{(memory_total / 100 * critical) / div:.{dd}f};0;"
+                 f"{memory_total / div:.{dd}f} "
+                 f"'usable memory [%]'={memory_usable_percent:.0f};{warning:.0f};{critical:.0f};0;100")
     print(f"{plugin_output} | {perf_data}")
     exit_code()
 
@@ -197,6 +214,7 @@ if mode == 'disk':
     UNKNOWN:  No disk states collected via SNMP at all.
     """
     output = ""
+    perf_data = ""
 
     for item in snmp_walk('1.3.6.1.4.1.6574.2.1.1.2'):
         current_state_flag = [3]
@@ -227,9 +245,9 @@ if mode == 'disk':
         elif disk_status:
             current_state_flag.append(0)
 
-        if critical and critical < disk_temp:
+        if critical and disk_temp > critical:
             current_state_flag.append(2)
-        elif warning and warning < disk_temp:
+        elif warning and disk_temp > warning:
             current_state_flag.append(1)
         elif disk_temp:
             current_state_flag.append(0)
@@ -241,20 +259,26 @@ if mode == 'disk':
         elif disk_health in ["Normal"]:
             current_state_flag.append(0)
 
+        disk_state = states_translation[0]
         for s in [2, 1, 0, 3]:
             if s in current_state_flag:
                 update_global_state(s)
                 disk_state = states_translation[s]
                 break
         output += (f"{disk_state} - {disk_name} - "
-                   f"Status: {disk_status}, Temperature: {disk_temp}C, Health: {disk_health}\n")
+                   f"Status: {disk_status}, Temperature: {disk_temp}`C, Health: {disk_health}\n")
+        perf_data += f"'{disk_name} temperature [`C]'={disk_temp};{warning};{critical};0;61 "
 
-    print(f"{states_translation[state_flag]}\n{output}")
+    print(f"{states_translation[state_flag]}\n{output} | {perf_data}")
     exit_code()
 
 if mode == 'storage':
+    if not uom:
+        uom = "TiB"
+    div, dd = uom_divisors.get(uom)
+
     output = ""
-    perfdata = ""
+    perf_data = ""
     for item in snmp_walk('1.3.6.1.2.1.25.2.3.1.3'):
         i = item.oid_index or item.oid.split('.')[-1]
         storage_name = item.value
@@ -271,11 +295,11 @@ if mode == 'storage':
             if storage_size == 0:
                 continue
 
-            storage_used_percent = storage_used * 100 / storage_size
+            storage_free_percent = storage_free * 100 / storage_size
 
-            if critical and critical < storage_used_percent:
+            if critical and storage_free_percent < critical:
                 state_flag = 2
-            elif warning and warning < storage_used_percent:
+            elif warning and storage_free_percent < warning:
                 state_flag = 1
             else:
                 state_flag = 0
@@ -284,18 +308,17 @@ if mode == 'storage':
             storage_state = states_translation[state_flag]
 
             output += (f"{storage_state} {storage_name} - "
-                       f"free space: {storage_free / div:.1f}{uom} "
-                       f"({storage_used / div:.1f}{uom} of {storage_size / div:.1f}{uom} used"
-                       f" - {storage_used_percent:.0f}%)\n")
-            if perfdata:
-                perfdata += ' '
-            perfdata += (f"'{storage_name}'={storage_free / div:.1f}{uom};"
-                         f"{(storage_size / 100 * warning) / div:.1f};"
-                         f"{(storage_size / 100 * critical) / div:.1f};0;"
-                         f"{storage_size / div:.1f} "
-                         f"'{storage_name} %'={storage_used_percent}%;{warning};{critical};0;100")
+                       f"free space: {storage_free / div:.{dd}f}{uom} of {storage_size / div:.{dd}f}{uom} free"
+                       f" - {storage_free_percent:.0f}%\n")
+            if perf_data:
+                perf_data += ' '
+            perf_data += (f"'{storage_name} [{uom}]'={storage_free / div:.{dd}f};"
+                          f"{(storage_size / 100 * warning) / div:.{dd}f};"
+                          f"{(storage_size / 100 * critical) / div:.{dd}f};0;"
+                          f"{storage_size / div:.{dd}f} "
+                          f"'{storage_name} [%]'={storage_free_percent:.0f}%;{warning};{critical};0;100")
 
-    print(f"{states_translation[state_flag]}\n{output} | {perfdata}")
+    print(f"{states_translation[state_flag]}\n{output} | {perf_data}")
     exit_code()
 
 if mode == 'update':
@@ -303,7 +326,7 @@ if mode == 'update':
     update_dsm_version = snmp_get('1.3.6.1.4.1.6574.1.5.3.0')
     status_translation = {
         '1': "Available",
-        '2': "Unavailable",
+        '2': "Up to date",
         '3': "Connecting",
         '4': "Disconnected",
         '5': "Others"
@@ -320,7 +343,6 @@ if mode == 'update':
     exit_code()
 
 if mode == 'status':
-
     # 1. Retrieve and decode system metrics.
     status_model = snmp_get('1.3.6.1.4.1.6574.1.5.1.0')
     status_serial = snmp_get('1.3.6.1.4.1.6574.1.5.2.0')
@@ -360,11 +382,14 @@ if mode == 'status':
         if critical and critical < int(status_temperature):
             state = 'CRITICAL'
 
-    print(f"{state} - Model: {status_model}, "
-          f"S/N: {status_serial}, "
-          f"System Temperature: {status_temperature}°C, "
-          f"System Status: {status_system}, "
-          f"System Fan: {status_system_fan}, "
-          f"CPU Fan: {status_cpu_fan}, "
-          f"Powersupply: {status_power}")
+    output = (f"{state} - Model: {status_model}, "
+              f"S/N: {status_serial}, "
+              f"System Temperature: {status_temperature}`C, "
+              f"System Status: {status_system}, "
+              f"System Fan: {status_system_fan}, "
+              f"CPU Fan: {status_cpu_fan}, "
+              f"PSU: {status_power}")
+    perf_data = f"'System temperature [`C]'={status_temperature};{warning};{critical};0;105"
+
+    print(f"{output} | {perf_data}")
     exit_code()

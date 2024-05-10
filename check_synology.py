@@ -71,7 +71,7 @@ try:
         version=3,
         timeout=snmp_timeout,
         retries=snmp_retries,
-        security_level="auth_with_privacy",
+        security_level=sec_lvl,
         security_username=user_name,
         auth_password=auth_key,
         auth_protocol=auth_prot,
